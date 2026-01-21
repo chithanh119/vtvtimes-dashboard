@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Environment variables
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Credentials / secrets
+credentials/
+*.json
+
+# Grafana local data
+grafana/data/
+grafana/plugins/
+
+# Docker
+*.pid

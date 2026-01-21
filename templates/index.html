@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTVTimes Analytics Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .refresh-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: white;
+            color: #1e3c72;
+            transform: translateY(-2px);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .map-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .map-section h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .stats-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .icon-users { background: #e3f2fd; color: #2196F3; }
+        .icon-source { background: #f3e5f5; color: #9c27b0; }
+        .icon-pages { background: #fff3e0; color: #ff9800; }
+
+        .active-users-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .user-metric {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .user-metric.secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .metric-label {
+            font-size: 20px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 33px;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f5f5f5;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px;
+            font-weight: 600;
+            color: #555;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading::before {
+            content: '⟳';
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            font-size: 24px;
+        }
+
+        /* Bubble Animation CSS */
+        @keyframes pulse {
+            0% {
+                transform: scale(0.5);
+                opacity: 0.7;
+            }
+            70% {
+                transform: scale(2.2);
+                opacity: 0.2;
+            }
+            100% {
+                transform: scale(3);
+                opacity: 0;
+            }
+        }
+
+        .pulse-marker {
+            animation: pulse 1.5s ease-out forwards;
+			pointer-events: none;
+        }
+
+        .bubble-marker {
+            transition: all 0.3s ease;
+        }
+
+        /* Custom Popup Styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .leaflet-popup-content {
+            margin: 12px;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard">
+            <!-- Bản đồ Việt Nam -->
+            <div class="map-section">
+                <h2>🗺️ User Distribution by Location</h2>
+                <div id="map"></div>
+            </div>
+
+            <!-- Các bảng thống kê -->
+            <div class="stats-section">
+                <!-- Bảng 1: Active Users -->
+                <div class="stat-card">
+                    <h2 style="color: #1877f2; margin-bottom: 20px; font-size: 24px; border-bottom: 3px solid #1877f2; padding-bottom: 10px;">
+                        👥 GA4 Active Users Overview
+                    </h2>
+                    <div class="active-users-grid">
+                        <div class="user-metric">
+                            <div class="metric-label">Last 5 Minutes</div>
+                            <div class="metric-value" id="users-5min">-</div>
+                        </div>
+                        <div class="user-metric secondary">
+                            <div class="metric-label">Last 30 Minutes</div>
+                            <div class="metric-value" id="users-30min">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng 2: Facebook Summary -->
+                <div style="padding: 30px; padding-top: 0;">
+                    <h2 style="color: #1877f2; margin-bottom: 20px; font-size: 24px; border-bottom: 3px solid #1877f2; padding-bottom: 10px;">
+                        📘 Facebook Fanpage Analytics (Last Day)
+                    </h2>
+
+                    <div class="dashboard" style="grid-template-columns: repeat(4, 1fr);">
+                        <!-- Facebook Summary Cards -->
+                        <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <h3 style="color: white;">
+                                <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">👁️</span>
+                                Views
+                            </h3>
+                            <div class="metric-value" id="fb_views">-</div>                        
+                        </div>
+
+                        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                            <h3 style="color: white;">
+                                <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">👥</span>
+                                Viewers
+                            </h3>
+                            <div class="metric-value" id="fb_viewers">-</div>                        
+                        </div>
+
+                        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                            <h3 style="color: white;">
+                                <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">📊</span>
+                                Visits
+                            </h3>
+                            <div class="metric-value" id="fb_visits">-</div>                        
+                        </div>
+
+                        <div class="stat-card" style="background: linear-gradient(135deg, #fcdd32 0%, #fae635 100%); color: white;">
+                            <h3 style="color: white;">
+                                <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">❤️</span>
+                                Follows
+                            </h3>
+                            <div class="metric-value" id="fb_follows">-</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <h3>
+                            <span class="stat-icon icon-source">📱</span>
+                            Active Users by Device Category
+                        </h3>
+                        <div id="source-table">
+                            <div class="loading">Loading data...</div>
+                        </div>
+                    </div>
+
+                    <!-- Bảng 3: Views by Page -->
+                    <div class="stat-card">
+                        <h3>
+                            <span class="stat-icon icon-pages">📄</span>
+                            Views by Page/Screen Name
+                        </h3>
+                        <div id="page-table">
+                            <div class="loading">Loading data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        let map;
+        let bubbleMarkers = [];
+
+        // Khởi tạo bản đồ
+        function initMap() {
+            map = L.map('map').setView([16.0, 106.0], 6);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(map);
+        }
+
+        // Cập nhật bubble map (thay thế heat map)
+        function updateHeatMap(data) {
+            // Xóa các bubble cũ
+            bubbleMarkers.forEach(marker => map.removeLayer(marker));
+            bubbleMarkers = [];
+
+            // Tạo bubbles mới
+            data.forEach(item => {
+                if (item.active_users_30min > 0) {
+                    // Tính toán kích thước bubble dựa trên số lượng users
+                    const baseRadius = Math.sqrt(item.active_users_30min) * 3;
+                    const radius = Math.max(baseRadius, 5); // Minimum size 8px
+                    
+                    // Tính màu sắc dựa trên số lượng users (gradient từ xanh -> vàng -> đỏ)
+                    let color;
+                    if (item.active_users_30min < 10) {
+                        color = '#4facfe'; // Xanh dương
+                    } else if (item.active_users_30min < 50) {
+                        color = '#43e97b'; // Xanh lá
+                    } else if (item.active_users_30min < 100) {
+                        color = '#ffd93d'; // Vàng
+                    } else if (item.active_users_30min < 200) {
+                        color = '#ff9800'; // Cam
+                    } else {
+                        color = '#ff6b6b'; // Đỏ
+                    }
+                    
+                    // Tạo circle marker với hiệu ứng bubble
+                    const bubble = L.circleMarker([item.latitude, item.longitude], {
+                        radius: radius,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 3,
+                        opacity: 0.8,
+                        fillOpacity: 0.6,
+                        className: 'bubble-marker'
+                    }).addTo(map);
+
+                    // Tạo pulse effect xung quanh bubble
+                    const pulseCircle = L.circleMarker([item.latitude, item.longitude], {
+                        radius: radius,
+                        fillColor: color,
+                        color: color,
+                        weight: 1,
+                        opacity: 0,
+                        fillOpacity: 0,
+                        className: 'pulse-marker'
+                    }).addTo(map);
+                    
+                    // Popup với thông tin chi tiết
+                    bubble.bindPopup(`
+                        <div style="text-align: center;">
+                            <b style="font-size: 16px; color: ${color};">${item.province}</b><br>
+                            <div style="margin-top: 8px; padding: 5px; background: #f5f5f5; border-radius: 5px;">
+                                <div style="font-size: 13px; margin: 3px 0;">
+                                    <span style="color: #666;">5 phút:</span> 
+                                    <strong style="color: #333;">${item.active_users_5min}</strong> users
+                                </div>
+                                <div style="font-size: 13px; margin: 3px 0;">
+                                    <span style="color: #666;">30 phút:</span> 
+                                    <strong style="color: #333;">${item.active_users_30min}</strong> users
+                                </div>
+                            </div>
+                        </div>
+                    `);
+
+                    // Hover effect - phóng to khi di chuột qua
+                    bubble.on('mouseover', function() {
+                        this.setStyle({
+                            weight: 5,
+                            fillOpacity: 0.9
+                        });
+                    });
+                    
+                    bubble.on('mouseout', function() {
+                        this.setStyle({
+                            weight: 3,
+                            fillOpacity: 0.6
+                        });
+                    });
+                    
+                    bubbleMarkers.push(bubble);
+                    bubbleMarkers.push(pulseCircle);
+                }
+            });
+        }
+
+        // Load dữ liệu
+        async function loadData() {
+            try {
+                const formatter = new Intl.NumberFormat('de-DE');
+                // Active Users
+                const usersRes = await fetch('/api/active-users');
+                const users = await usersRes.json();
+                document.getElementById('users-5min').textContent = formatter.format(users.users_5min);
+                document.getElementById('users-30min').textContent = formatter.format(users.users_30min);
+
+                // Map Data
+                const mapRes = await fetch('/api/map-data');
+                const mapData = await mapRes.json();
+                updateHeatMap(mapData);
+
+                // Users by Source
+                const sourceRes = await fetch('/api/users-by-source');
+                const sourceData = await sourceRes.json();
+                renderSourceTable(sourceData);
+
+                // Views by Page
+                const pageRes = await fetch('/api/views-by-page');
+                const pageData = await pageRes.json();
+                renderPageTable(pageData);
+
+                // Facebook Active Users
+                const fbValue = await fetch('/api/facebook/daily_insights');
+                const value = await fbValue.json();
+                document.getElementById('fb_views').textContent = formatter.format(value.fb_views);
+                document.getElementById('fb_viewers').textContent = formatter.format(value.fb_viewers);
+                document.getElementById('fb_visits').textContent = formatter.format(value.fb_visits);
+                document.getElementById('fb_follows').textContent = formatter.format(value.fb_follows);
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        function renderSourceTable(data) {
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Device Category</th>
+                            <th>Active Users</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td>${item.source}</td>
+                                <td><strong>${item.active_users}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('source-table').innerHTML = html;
+        }
+
+        function renderPageTable(data) {
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Page/Screen Name</th>
+                            <th>Views</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td>${item.page_title || item.screen_name}</td>
+                                <td><strong>${item.views}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('page-table').innerHTML = html;
+        }
+
+        async function refreshData() {
+            const btn = document.querySelector('.refresh-btn');
+            btn.textContent = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            try {
+                await fetch('/api/refresh');
+                await loadData();
+                btn.textContent = '✓ Updated!';
+                setTimeout(() => {
+                    btn.textContent = '🔄 Refresh Data';
+                    btn.disabled = false;
+                }, 2000);
+            } catch (error) {
+                btn.textContent = '✗ Error';
+                setTimeout(() => {
+                    btn.textContent = '🔄 Refresh Data';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+
+        // Khởi chạy
+        initMap();
+        loadData();
+        
+        // Auto refresh mỗi 60 giây
+        setInterval(loadData, 60000);
+    </script>
+</body>
+</html>

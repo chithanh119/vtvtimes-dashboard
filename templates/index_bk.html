@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GA4 Analytics Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .refresh-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: white;
+            color: #1e3c72;
+            transform: translateY(-2px);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+            padding: 30px;
+        }
+
+        .map-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .map-section h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .stats-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .icon-users { background: #e3f2fd; color: #2196F3; }
+        .icon-source { background: #f3e5f5; color: #9c27b0; }
+        .icon-pages { background: #fff3e0; color: #ff9800; }
+
+        .active-users-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .user-metric {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .user-metric.secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 36px;
+            font-weight: 700;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f5f5f5;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px;
+            font-weight: 600;
+            color: #555;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+
+        tr:hover {
+            background: #fafafa;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading::before {
+            content: '⟳';
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            font-size: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 GA4 & Facebook Analytics Dashboard</h1>
+            <div>
+                <button class="refresh-btn" onclick="refreshData()">🔄 Refresh GA4</button>
+                <button class="refresh-btn" onclick="refreshFacebookData()" style="margin-left: 10px;">📘 Refresh Facebook</button>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <!-- Bản đồ Việt Nam -->
+            <div class="map-section">
+                <h2>🗺️ User Distribution by Location</h2>
+                <div id="map"></div>
+            </div>
+
+            <!-- Các bảng thống kê -->
+            <div class="stats-section">
+                <!-- Bảng 1: Active Users -->
+                <div class="stat-card">
+                    <h3>
+                        <span class="stat-icon icon-users">👥</span>
+                        Active Users Overview
+                    </h3>
+                    <div class="active-users-grid">
+                        <div class="user-metric">
+                            <div class="metric-label">Last 5 Minutes</div>
+                            <div class="metric-value" id="users-5min">-</div>
+                        </div>
+                        <div class="user-metric secondary">
+                            <div class="metric-label">Last 30 Minutes</div>
+                            <div class="metric-value" id="users-30min">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng 2: Users by Device -->
+                <div class="stat-card">
+                    <h3>
+                        <span class="stat-icon icon-source">📱</span>
+                        Active Users by Device Category
+                    </h3>
+                    <div id="source-table">
+                        <div class="loading">Loading data...</div>
+                    </div>
+                </div>
+
+                <!-- Bảng 3: Views by Page -->
+                <div class="stat-card">
+                    <h3>
+                        <span class="stat-icon icon-pages">📄</span>
+                        Views by Page/Screen Name
+                    </h3>
+                    <div id="page-table">
+                        <div class="loading">Loading data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Facebook Analytics Section -->
+        <div style="padding: 30px; padding-top: 0;">
+            <h2 style="color: #1877f2; margin-bottom: 20px; font-size: 24px; border-bottom: 3px solid #1877f2; padding-bottom: 10px;">
+                📘 Facebook Fanpage Analytics (Last 7 Days)
+            </h2>
+
+            <div class="dashboard" style="grid-template-columns: repeat(3, 1fr);">
+                <!-- Facebook Summary Cards -->
+                <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h3 style="color: white;">
+                        <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">👁️</span>
+                        Total Views
+                    </h3>
+                    <div class="metric-value" id="fb-total-views" style="font-size: 48px; margin-top: 15px; color: white;">-</div>
+                    <div style="font-size: 12px; opacity: 0.9; margin-top: 5px;">Page Views (7 days)</div>
+                </div>
+
+                <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <h3 style="color: white;">
+                        <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">👥</span>
+                        Total Viewers
+                    </h3>
+                    <div class="metric-value" id="fb-total-viewers" style="font-size: 48px; margin-top: 15px; color: white;">-</div>
+                    <div style="font-size: 12px; opacity: 0.9; margin-top: 5px;">Unique Viewers (7 days)</div>
+                </div>
+
+                <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                    <h3 style="color: white;">
+                        <span class="stat-icon" style="background: rgba(255,255,255,0.3); color: white;">❤️</span>
+                        Total Engagement
+                    </h3>
+                    <div class="metric-value" id="fb-total-engagement" style="font-size: 48px; margin-top: 15px; color: white;">-</div>
+                    <div style="font-size: 12px; opacity: 0.9; margin-top: 5px;">
+                        Avg Rate: <span id="fb-engagement-rate">-</span>%
+                    </div>
+                </div>
+            </div>
+
+            <!-- Facebook Charts & Tables -->
+            <div class="dashboard" style="margin-top: 20px;">
+                <!-- Daily Metrics Chart -->
+                <div class="stat-card" style="grid-column: span 2;">
+                    <h3>
+                        <span class="stat-icon icon-source">📈</span>
+                        Daily Performance Trend
+                    </h3>
+                    <canvas id="fb-chart" style="max-height: 300px;"></canvas>
+                </div>
+
+                <!-- Top Posts Table -->
+                <div class="stat-card">
+                    <h3>
+                        <span class="stat-icon icon-pages">🔥</span>
+                        Top Engaging Posts
+                    </h3>
+                    <div id="fb-posts-table">
+                        <div class="loading">Loading data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script>
+        let map;
+        let heatLayer;
+        let fbChart;
+
+        // Khởi tạo bản đồ
+        function initMap() {
+            map = L.map('map').setView([16.0, 106.0], 6);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(map);
+        }
+
+        // Cập nhật heat map
+        function updateHeatMap(data) {
+            if (heatLayer) {
+                map.removeLayer(heatLayer);
+            }
+
+            const heatData = data.map(item => [
+                item.latitude,
+                item.longitude,
+                item.active_users_30min / 10 // Điều chỉnh intensity
+            ]);
+
+            heatLayer = L.heatLayer(heatData, {
+                radius: 35,
+                blur: 25,
+                maxZoom: 10,
+                gradient: {
+                    0.0: 'blue',
+                    0.5: 'lime',
+                    0.7: 'yellow',
+                    1.0: 'red'
+                }
+            }).addTo(map);
+
+            // Thêm markers với popup
+            data.forEach(item => {
+                if (item.active_users_30min > 0) {
+                    const marker = L.circleMarker([item.latitude, item.longitude], {
+                        radius: Math.sqrt(item.active_users_30min) * 2,
+                        fillColor: '#ff6b6b',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.6
+                    }).addTo(map);
+
+                    marker.bindPopup(`
+                        <b>${item.province}</b><br>
+                        5 phút: ${item.active_users_5min} users<br>
+                        30 phút: ${item.active_users_30min} users
+                    `);
+                }
+            });
+        }
+
+        // Load dữ liệu
+        async function loadData() {
+            try {
+                // Active Users
+                const usersRes = await fetch('/api/active-users');
+                const users = await usersRes.json();
+                document.getElementById('users-5min').textContent = users.users_5min;
+                document.getElementById('users-30min').textContent = users.users_30min;
+
+                // Map Data
+                const mapRes = await fetch('/api/map-data');
+                const mapData = await mapRes.json();
+                updateHeatMap(mapData);
+
+                // Users by Source
+                const sourceRes = await fetch('/api/users-by-source');
+                const sourceData = await sourceRes.json();
+                renderSourceTable(sourceData);
+
+                // Views by Page
+                const pageRes = await fetch('/api/views-by-page');
+                const pageData = await pageRes.json();
+                renderPageTable(pageData);
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+            }
+        }
+
+        function renderSourceTable(data) {
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Device Category</th>
+                            <th>Active Users</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td>${item.source}</td>
+                                <td><strong>${item.active_users}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('source-table').innerHTML = html;
+        }
+
+        function renderPageTable(data) {
+            const html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Page/Screen Name</th>
+                            <th>Views</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td>${item.page_title || item.screen_name}</td>
+                                <td><strong>${item.views}</strong></td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('page-table').innerHTML = html;
+        }
+
+        async function refreshData() {
+            const btn = document.querySelector('.refresh-btn');
+            btn.textContent = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            try {
+                await fetch('/api/refresh');
+                await loadData();
+                btn.textContent = '✓ Updated!';
+                setTimeout(() => {
+                    btn.textContent = '🔄 Refresh Data';
+                    btn.disabled = false;
+                }, 2000);
+            } catch (error) {
+                btn.textContent = '✗ Error';
+                setTimeout(() => {
+                    btn.textContent = '🔄 Refresh Data';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        }
+
+        // ============= FACEBOOK FUNCTIONS =============
+        
+        async function loadFacebookData() {
+            try {
+                // Load summary
+                const summaryRes = await fetch('/api/facebook/summary');
+                const summary = await summaryRes.json();
+                
+                document.getElementById('fb-total-views').textContent = 
+                    (summary.total_views_7d || 0).toLocaleString();
+                document.getElementById('fb-total-viewers').textContent = 
+                    (summary.total_viewers_7d || 0).toLocaleString();
+                document.getElementById('fb-total-engagement').textContent = 
+                    (summary.total_engagement_7d || 0).toLocaleString();
+                document.getElementById('fb-engagement-rate').textContent = 
+                    (summary.avg_engagement_rate || 0).toFixed(2);
+
+                // Load daily metrics
+                const metricsRes = await fetch('/api/facebook/daily-metrics');
+                const metrics = await metricsRes.json();
+                renderFacebookChart(metrics);
+
+                // Load top posts
+                const postsRes = await fetch('/api/facebook/top-posts');
+                const posts = await postsRes.json();
+                renderFacebookPosts(posts);
+
+            } catch (error) {
+                console.error('Error loading Facebook data:', error);
+            }
+        }
+
+        function renderFacebookChart(data) {
+            const ctx = document.getElementById('fb-chart');
+            
+            if (fbChart) {
+                fbChart.destroy();
+            }
+
+            const labels = data.map(d => {
+                const date = new Date(d.metric_date);
+                return date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' });
+            });
+
+            fbChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Views',
+                            data: data.map(d => d.total_views),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Viewers',
+                            data: data.map(d => d.total_viewers),
+                            borderColor: '#f093fb',
+                            backgroundColor: 'rgba(240, 147, 251, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Engagement',
+                            data: data.map(d => d.total_engagement),
+                            borderColor: '#4facfe',
+                            backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderFacebookPosts(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('fb-posts-table').innerHTML = 
+                    '<p style="text-align:center;color:#999;padding:20px;">No posts data available</p>';
+                return;
+            }
+
+            const html = `
+                <div style="max-height: 400px; overflow-y: auto;">
+                    ${data.slice(0, 5).map(post => {
+                        const message = post.post_message || 'No message';
+                        const shortMessage = message.length > 80 
+                            ? message.substring(0, 80) + '...' 
+                            : message;
+                        
+                        const totalEng = post.total_engagement || 0;
+                        
+                        return `
+                            <div style="border-bottom: 1px solid #f0f0f0; padding: 12px 0;">
+                                <div style="font-weight: 600; margin-bottom: 5px; font-size: 13px;">
+                                    ${shortMessage}
+                                </div>
+                                <div style="display: flex; gap: 15px; font-size: 12px; color: #666;">
+                                    <span>❤️ ${post.post_reactions || 0}</span>
+                                    <span>💬 ${post.post_comments || 0}</span>
+                                    <span>🔄 ${post.post_shares || 0}</span>
+                                </div>
+                                <div style="margin-top: 5px; font-size: 11px; color: #999;">
+                                    👁️ ${(post.post_impressions || 0).toLocaleString()} impressions
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            document.getElementById('fb-posts-table').innerHTML = html;
+        }
+
+        async function refreshFacebookData() {
+            const btns = document.querySelectorAll('.refresh-btn');
+            const fbBtn = btns[1];
+            fbBtn.textContent = '⏳ Refreshing...';
+            fbBtn.disabled = true;
+
+            try {
+                await fetch('/api/facebook/refresh');
+                await loadFacebookData();
+                fbBtn.textContent = '✓ Updated!';
+                setTimeout(() => {
+                    fbBtn.textContent = '📘 Refresh Facebook';
+                    fbBtn.disabled = false;
+                }, 2000);
+            } catch (error) {
+                fbBtn.textContent = '✗ Error';
+                setTimeout(() => {
+                    fbBtn.textContent = '📘 Refresh Facebook';
+                    fbBtn.disabled = false;
+                }, 2000);
+            }
+        }
+
+        // Khởi chạy
+        initMap();
+        loadData();
+        loadFacebookData();
+        
+        // Auto refresh mỗi 60 giây
+        setInterval(loadData, 60000);
+        setInterval(loadFacebookData, 300000); // Facebook mỗi 5 phút
+    </script>
+</body>
+</html>
